@@ -1,5 +1,6 @@
 package org.example;
 
+//сеттеров,чтобы класс оставался имутабельным (так безопаснее)
 public class Edge {
     private int uVertex;
     private int vVertex;
