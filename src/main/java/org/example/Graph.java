@@ -36,9 +36,129 @@ public class Graph {
         return selfLoopList;
     }
 
+    private enum VertexColor{
+        WHITE,
+        GREY,
+        BLACK
+    }
+
+    private enum EdgeDirection{
+        UV,
+        VU,
+        UNDIRECTED
+    }
+
+    private void orientingDFS(int currentVertex,Map<Integer,VertexColor> vertexColorMap, Map<Edge,EdgeDirection> edgeDirectionMap,
+            Map<Integer,List<Edge>> adjacencyMap,List<Integer> vertexOrder){
+
+        vertexOrder.add(currentVertex);//добавляем в список для второго обхода
+        vertexColorMap.put(currentVertex,VertexColor.GREY);//обрабатываемая вершина стала серой
+
+
+        for (Edge e:adjacencyMap.get(currentVertex)){
+
+            int neighbourVertex=getOtherVertex(currentVertex,e);
+            VertexColor neighbourVertexColor=vertexColorMap.get(neighbourVertex);
+
+            if (neighbourVertexColor==VertexColor.WHITE){
+                if (neighbourVertex==e.getU()){
+                    edgeDirectionMap.put(e,EdgeDirection.UV);
+                }
+                else{
+                    edgeDirectionMap.put(e,EdgeDirection.VU);
+                }
+                orientingDFS(neighbourVertex,vertexColorMap, edgeDirectionMap,adjacencyMap,vertexOrder);
+            }
+            // если мы если сосед серый то он замыкает цикл такое ребро отсается неориентированным и уже обработано
+            else if (neighbourVertexColor==VertexColor.GREY||neighbourVertexColor==VertexColor.BLACK){
+                continue;
+            }
+        }
+
+        //на этот момент стек рекурсии для этой вершины завершен,
+        // то есть все ветки дерева рекурсии после текущей вершины уже черные
+        vertexColorMap.put(currentVertex,VertexColor.BLACK);
+    }
+
+    private void findConnectedComp(int vertex,Map<Integer,Integer> vertexConnectedComponent,int connectedComponentCnt,
+                                   Map<Edge,EdgeDirection> edgeDirectionMap){
+
+
+        List<Edge> ways = adjacencyMap.get(vertex);
+        for (Edge way:ways){
+
+            int neighbourByWay=getOtherVertex(vertex,way);
+            //если сосед необработан (ему не присвоена компонента связности)
+            //решил что лучше так, чем опять использовать WHITE-GREY-BLACK
+            if (!vertexConnectedComponent.containsKey(neighbourByWay)) {
+                //проверка проходимости
+                if (edgeDirectionMap.get(way) == EdgeDirection.UNDIRECTED) {
+                    vertexConnectedComponent.put(neighbourByWay, connectedComponentCnt);
+                    findConnectedComp(neighbourByWay,vertexConnectedComponent,connectedComponentCnt, edgeDirectionMap);
+                }
+                else if ((edgeDirectionMap.get(way) == EdgeDirection.UV) && (way.getU() == vertex)) {
+                    vertexConnectedComponent.put(neighbourByWay, connectedComponentCnt);
+                    findConnectedComp(neighbourByWay,vertexConnectedComponent,connectedComponentCnt, edgeDirectionMap);
+                }
+                else if ((edgeDirectionMap.get(way) == EdgeDirection.VU) && (way.getV() == vertex)) {
+                    vertexConnectedComponent.put(neighbourByWay, connectedComponentCnt);
+                    findConnectedComp(neighbourByWay,vertexConnectedComponent,connectedComponentCnt, edgeDirectionMap);
+                }
+            }
+        }
+    }
+
     public List<Edge> bridgeSearch(){//поиск мостов с алгоритмом DFS
         List <Edge> bridgeList=new ArrayList<>();
-        //алгоритм//
+
+        List<Integer> vertexOrder=new ArrayList<>();
+
+        //цвет-вершина
+        Map<Integer,VertexColor> vertexColorMap=new HashMap<>();
+        for (int vertex:adjacencyMap.keySet()){
+            vertexColorMap.put(vertex,VertexColor.WHITE);
+        }
+
+        //ребро ориентация
+        Map<Edge,EdgeDirection> edgeDirectionMap =new HashMap<>();
+        for (Edge e:edgeList){
+            edgeDirectionMap.put(e,EdgeDirection.UNDIRECTED);
+        }
+
+        //первый проход DFS
+        for (int vertex:adjacencyMap.keySet()){
+            if(vertexColorMap.get(vertex)==VertexColor.WHITE){
+                orientingDFS(vertex,vertexColorMap, edgeDirectionMap,adjacencyMap,vertexOrder);
+            }
+        }
+        //ребра ориентрированны, список обхода готов
+
+        //вершина-номер (цвет) компоненты связности
+        Map<Integer,Integer> vertexConnectedComponent =new HashMap<>();
+        int connectedComponentCnt=0;//номер цвета первой компоненты (можно поменять на 1)
+
+        for (int vertex:vertexOrder){
+            //если вершина до сих пор не принадлежит ни одной из компонент связности
+            // (которые находятся во время второго прохода)
+            if (!vertexConnectedComponent.containsKey(vertex)) {
+                //создаем новую компоненту связности
+                vertexConnectedComponent.put(vertex,connectedComponentCnt);
+                findConnectedComp(vertex,vertexConnectedComponent,connectedComponentCnt, edgeDirectionMap);
+                connectedComponentCnt++;
+            }
+        }
+
+        //у нас есть список компонент связности разных цветов,
+        //теперь мы просто ищем ребра,у которых вершины в разных компонентах
+        for (Edge e:edgeList){
+            //цвета вершин
+            int uComp=vertexConnectedComponent.get(e.getU());
+            int vComp=vertexConnectedComponent.get(e.getV());
+
+            if (uComp!=vComp){
+                bridgeList.add(e);
+            }
+        }
         return bridgeList;
     }
 
