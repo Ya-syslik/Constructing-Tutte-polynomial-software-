@@ -13,6 +13,11 @@ public class Graph {
     public Graph(){}//пока не понятно какие данные поступают на вход вероятно файл
     // ,думаю написать отдлеьный конструтор если надо будет данные с файла, а по умолчанию  оставить таким
 
+    public Graph(List edgeList,Map adjacencyMap){//констуктор для тестов
+        this.edgeList=edgeList;
+        this.adjacencyMap=adjacencyMap;
+    }
+
     public Graph (Graph original){//конструктор копирования
         for (Edge e:original.edgeList){
             this.edgeList.add(e);
@@ -182,7 +187,7 @@ public class Graph {
         int firstVertex =e.getU();//эта результат стягивания
         int secondVertex =e.getV();//эту удаляем
 
-        contractedGraph.deleteEdge(e);//удаляем ребро между вершинами
+        contractedGraph=contractedGraph.deleteEdge(e);//удаляем ребро между вершинами
 
         //создаем копию списка, чтобы пройтись по нему без исключений
         // (внутри цикла удаляются ребра, что приводит к крашу)
@@ -199,17 +204,29 @@ public class Graph {
 
             int neighbourVertex= getOtherVertex(secondVertex,incidentEdge);//находим соседа удаляемой вершины
 
-            Edge afterContractinonEdge=new Edge(neighbourVertex, firstVertex);//создаем новое ребро для списка структур
+            // Если incidentEdge было петлёй на удаляемой вершине (2, 2),
+            // то её второй конец тоже переезжает в firstVertex, превращаясь в петлю (1, 1)
+            int newTargetVertex = (neighbourVertex == secondVertex) ? firstVertex : neighbourVertex;
+
+            Edge afterContractionEdge =new Edge(newTargetVertex, firstVertex);//создаем новое ребро для списка структур
 
             //обновляем список смежных ребер для первой вершины
-            contractedGraph.adjacencyMap.get(firstVertex).add(afterContractinonEdge);
+            contractedGraph.adjacencyMap.get(firstVertex).add(afterContractionEdge);
 
-            //обновляем список смежных ребер для соседа
-            contractedGraph.adjacencyMap.get(neighbourVertex).add(afterContractinonEdge);
-            contractedGraph.adjacencyMap.get(neighbourVertex).remove(incidentEdge);
+            // Если новое ребро - НЕ петля: добавляем ребро в список соседа, а старое ребро оттуда удаляем.
+            if (newTargetVertex != firstVertex) {
+                contractedGraph.adjacencyMap.get(newTargetVertex).add(afterContractionEdge);
+                contractedGraph.adjacencyMap.get(newTargetVertex).remove(incidentEdge);
+            } else if (neighbourVertex == firstVertex) {
+                // Если это была параллельная связь , старое ребро нужно вычистить из firstVertex
+                // дублируем предыдущую строчку по сути
+                contractedGraph.adjacencyMap.get(firstVertex).remove(incidentEdge);
+            }
+            //если Если incidentEdge было петлёй на удаляемой вершине, то удаление вершины из списка смежности решит все проблемы
+            //(это после цикла просиходит одной операцией)
 
             //обновляем список ребер
-            contractedGraph.edgeList.add(afterContractinonEdge);
+            contractedGraph.edgeList.add(afterContractionEdge);
             contractedGraph.edgeList.remove(incidentEdge);
         }
 
