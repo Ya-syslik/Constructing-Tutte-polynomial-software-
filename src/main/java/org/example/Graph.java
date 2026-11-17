@@ -61,7 +61,9 @@ public class Graph {
         int u=removingEdge.getU();
         int v=removingEdge.getV();
         adjacencyMap.get(u).remove(removingEdge);
-        adjacencyMap.get(v).remove(removingEdge);
+        if (u!=v) {
+            adjacencyMap.get(v).remove(removingEdge);
+        }
     }
 
     //поиск соседа по ребру для вершины
