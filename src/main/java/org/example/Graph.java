@@ -85,30 +85,26 @@ public class Graph {
         vertexColorMap.put(currentVertex,VertexColor.BLACK);
     }
 
+    //проверка проходимости
+    private boolean canPass(Edge way,int fromVertex,EdgeDirection dir){
+        if (dir==EdgeDirection.UNDIRECTED){
+            return true;
+        }
+        if (dir==EdgeDirection.UV && fromVertex== way.getU()){return true;}
+        return (dir==EdgeDirection.VU && fromVertex== way.getV());
+    }
+
+    //нахождение ровно одной компоненты связности от переданной в функцию вершины
     private void findConnectedComp(int vertex,Map<Integer,Integer> vertexConnectedComponent,int connectedComponentCnt,
                                    Map<Edge,EdgeDirection> edgeDirectionMap){
 
-
-        List<Edge> ways = adjacencyMap.get(vertex);
-        for (Edge way:ways){
-
+        for (Edge way:adjacencyMap.get(vertex)){
             int neighbourByWay=getOtherVertex(vertex,way);
             //если сосед необработан (ему не присвоена компонента связности)
             //решил что лучше так, чем опять использовать WHITE-GREY-BLACK
-            if (!vertexConnectedComponent.containsKey(neighbourByWay)) {
-                //проверка проходимости
-                if (edgeDirectionMap.get(way) == EdgeDirection.UNDIRECTED) {
+            if (!vertexConnectedComponent.containsKey(neighbourByWay) && canPass(way,vertex,edgeDirectionMap.get(way))) {
                     vertexConnectedComponent.put(neighbourByWay, connectedComponentCnt);
                     findConnectedComp(neighbourByWay,vertexConnectedComponent,connectedComponentCnt, edgeDirectionMap);
-                }
-                else if ((edgeDirectionMap.get(way) == EdgeDirection.UV) && (way.getU() == vertex)) {
-                    vertexConnectedComponent.put(neighbourByWay, connectedComponentCnt);
-                    findConnectedComp(neighbourByWay,vertexConnectedComponent,connectedComponentCnt, edgeDirectionMap);
-                }
-                else if ((edgeDirectionMap.get(way) == EdgeDirection.VU) && (way.getV() == vertex)) {
-                    vertexConnectedComponent.put(neighbourByWay, connectedComponentCnt);
-                    findConnectedComp(neighbourByWay,vertexConnectedComponent,connectedComponentCnt, edgeDirectionMap);
-                }
             }
         }
     }
@@ -167,12 +163,28 @@ public class Graph {
         return bridgeList;
     }
 
-    public Graph deleteEdge(Edge e){
-        Graph graphWithoutE=new Graph(this);
-        graphWithoutE.edgeList.remove(e);
-        graphWithoutE.adjacencyMap.get(e.getU()).remove(e);
-        graphWithoutE.adjacencyMap.get(e.getV()).remove(e);
-        return graphWithoutE;
+
+    private void addEdgeInternal(Edge addingEdge){
+        edgeList.add(addingEdge);
+
+        int u=addingEdge.getU();
+        int v=addingEdge.getV();
+        if(u!=v){
+            adjacencyMap.get(u).add(addingEdge);
+            adjacencyMap.get(v).add(addingEdge);
+        }
+        else if (u==v){
+            adjacencyMap.get(u).add(addingEdge);
+        }
+    }
+
+    private void removeEdgeInternal(Edge removingEdge){
+        edgeList.remove(removingEdge);
+
+        int u=removingEdge.getU();
+        int v=removingEdge.getV();
+        adjacencyMap.get(u).remove(removingEdge);
+        adjacencyMap.get(v).remove(removingEdge);
     }
 
     //поиск соседа по ребру для вершины
@@ -181,60 +193,42 @@ public class Graph {
         return otherVertex;
     }
 
+    public Graph deleteEdge(Edge e){
+        Graph withoutEdgeGraph= new Graph(this);
+        withoutEdgeGraph.removeEdgeInternal(e);
+        return withoutEdgeGraph;
+    }
+
     public Graph contractEdge(Edge e){
-        Graph contractedGraph=new Graph(this);
 
-        int firstVertex =e.getU();//эта результат стягивания
-        int secondVertex =e.getV();//эту удаляем
+        int survivingVertex=e.getU();
+        int deletingVertex=e.getV();
 
-        contractedGraph=contractedGraph.deleteEdge(e);//удаляем ребро между вершинами
-
-        //создаем копию списка, чтобы пройтись по нему без исключений
-        // (внутри цикла удаляются ребра, что приводит к крашу)
-        List<Edge> vIncidentEdgesCopy =new ArrayList<>();
-        for (Edge edgeForCopy: contractedGraph.adjacencyMap.get(secondVertex)){
-            Edge edgeCopy = edgeForCopy;
-            vIncidentEdgesCopy.add(edgeCopy);
+        //проверка на передачу в метод петли (нельзя стгивать петлю,возвращаем исходный граф)
+        if (survivingVertex==deletingVertex){
+            return this;
         }
 
-        //создаем новое ребро,
-        // так как Edge неизменяем мы вместо перезаписи вершин в уже существующие ребра
-        //удаляем старые и создаем новые ребра с корректными вершинами
-        for (Edge incidentEdge: vIncidentEdgesCopy){
+        Graph contractedGraph=deleteEdge(e);
 
-            int neighbourVertex= getOtherVertex(secondVertex,incidentEdge);//находим соседа удаляемой вершины
+        //копия для цикла,так как внутри него из структуры удаляются ребра
+        List<Edge> allEdgesFromDeletingVertex = new ArrayList<>(contractedGraph.getAdjacencyMap().get(deletingVertex));
 
-            // Если incidentEdge было петлёй на удаляемой вершине (2, 2),
-            // то её второй конец тоже переезжает в firstVertex, превращаясь в петлю (1, 1)
-            int newTargetVertex = (neighbourVertex == secondVertex) ? firstVertex : neighbourVertex;
+        for (Edge eFromDelV :allEdgesFromDeletingVertex) {
+            int neighbour=getOtherVertex(deletingVertex,eFromDelV);
+            //если у удаляемой вершины была петля,то она полностью переходит на survivingVertex
+            int targetVertex=(neighbour==deletingVertex)?survivingVertex:neighbour;
 
-            Edge afterContractionEdge =new Edge(newTargetVertex, firstVertex);//создаем новое ребро для списка структур
-
-            //обновляем список смежных ребер для первой вершины
-            contractedGraph.adjacencyMap.get(firstVertex).add(afterContractionEdge);
-
-            // Если новое ребро - НЕ петля: добавляем ребро в список соседа, а старое ребро оттуда удаляем.
-            if (newTargetVertex != firstVertex) {
-                contractedGraph.adjacencyMap.get(newTargetVertex).add(afterContractionEdge);
-                contractedGraph.adjacencyMap.get(newTargetVertex).remove(incidentEdge);
-            } else if (neighbourVertex == firstVertex) {
-                // Если это была параллельная связь , старое ребро нужно вычистить из firstVertex
-                // дублируем предыдущую строчку по сути
-                contractedGraph.adjacencyMap.get(firstVertex).remove(incidentEdge);
-            }
-            //если Если incidentEdge было петлёй на удаляемой вершине, то удаление вершины из списка смежности решит все проблемы
-            //(это после цикла просиходит одной операцией)
-
-            //обновляем список ребер
-            contractedGraph.edgeList.add(afterContractionEdge);
-            contractedGraph.edgeList.remove(incidentEdge);
+            Edge afterContactionEdge=new Edge(survivingVertex,targetVertex);
+            contractedGraph.removeEdgeInternal(eFromDelV);
+            contractedGraph.addEdgeInternal(afterContactionEdge);
         }
 
-        //удаляем вторую вершину
-        contractedGraph.adjacencyMap.remove(secondVertex);
+        contractedGraph.getAdjacencyMap().remove(deletingVertex);
 
         return contractedGraph;
     }
+
 
     public List<Edge> getEdgeList() {
         return edgeList;
