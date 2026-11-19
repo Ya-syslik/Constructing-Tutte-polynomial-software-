@@ -195,13 +195,11 @@ public class TutteAnalys {
         Polynomial2D result = Polynomial2D.constant(0);
 
         // Перебираем слагаемые c*x^i*y^j исходного многочлена.
-        for (Map.Entry<Polynomial2D.Monomial, BigInteger> entry
-                : tutte.getTerms().entrySet()) {
+        for (Map.Entry<Polynomial2D.Monomial, BigInteger> entry : tutte.getTerms().entrySet()) {
             Polynomial2D.Monomial monomial = entry.getKey();
 
             // Меняем степени местами: c*x^i*y^j превращается в c*x^j*y^i.
-            Polynomial2D swappedTerm = Polynomial2D.monomial(
-                    monomial.getDegreeY(), monomial.getDegreeX(), entry.getValue());
+            Polynomial2D swappedTerm = Polynomial2D.monomial(monomial.getDegreeY(), monomial.getDegreeX(), entry.getValue());
             result = result.add(swappedTerm);
         }
         return result;
