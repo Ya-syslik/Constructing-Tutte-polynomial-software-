@@ -1,6 +1,7 @@
 package org.example;
 
 import java.math.BigInteger;
+import java.util.Map;
 
 // Вычисляет характеристики графа по готовому многочлену Татта T(x,y).
 public class TutteAnalys {
@@ -186,6 +187,24 @@ public class TutteAnalys {
     // T(2,2)=2^m — все остовные подграфы: каждое ребро можно оставить или удалить.
     public BigInteger spanningSubgraphCount() {
         return tutte.evaluate(2, 2);
+    }
+
+    // Для плоского графа G: T_G*(x,y) = T_G(y,x).
+    // Сам граф G* здесь не строится.
+    public Polynomial2D dualTuttePolynomial() {
+        Polynomial2D result = Polynomial2D.constant(0);
+
+        // Перебираем слагаемые c*x^i*y^j исходного многочлена.
+        for (Map.Entry<Polynomial2D.Monomial, BigInteger> entry
+                : tutte.getTerms().entrySet()) {
+            Polynomial2D.Monomial monomial = entry.getKey();
+
+            // Меняем степени местами: c*x^i*y^j превращается в c*x^j*y^i.
+            Polynomial2D swappedTerm = Polynomial2D.monomial(
+                    monomial.getDegreeY(), monomial.getDegreeX(), entry.getValue());
+            result = result.add(swappedTerm);
+        }
+        return result;
     }
 
     // Доступ к размерам исходного графа.
